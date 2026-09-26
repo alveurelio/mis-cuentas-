@@ -136,6 +136,14 @@
   .fab:active{transform:translateX(-50%) scale(0.94);}
   /* ---- Utilidades ---- */
   .fila{display:flex; justify-content:space-between; align-items:center;}
+
+  /* Deslizar para eliminar */
+  .swipe-envoltura{position:relative; overflow:hidden; border-top:1px solid var(--line);}
+  .swipe-envoltura:first-child{border-top:none;}
+  .swipe-fondo{position:absolute; inset:0; background:var(--danger); display:flex; align-items:center; justify-content:flex-end; padding-right:20px; border-radius:8px;}
+  .swipe-fondo span{color:#fff; font-weight:800; font-size:13px;}
+  .swipe-contenido{position:relative; background:var(--paper); touch-action:pan-y; transition:transform .18s ease;}
+  .swipe-contenido.sin-transicion{transition:none;}
   .monto-ingreso{color:var(--sage); font-weight:800;}
   .monto-gasto{color:var(--danger); font-weight:800;}
   .muted{color:var(--ink-soft); font-size:13px;}
