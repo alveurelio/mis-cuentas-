@@ -211,6 +211,7 @@ function renderInicio() {
       ` : ultimosMov.map(filaMovimientoHTML).join("")}
     </div>
   `;
+  activarSwipes(cont);
 }
 
 function filaMovimientoHTML(m) {
@@ -218,7 +219,10 @@ function filaMovimientoHTML(m) {
     ? (m.fuente === "negocio" ? buscarEnCatalogo(SERVICIOS, m.detalle) : buscarEnCatalogo(FUENTES_EXTERNAS, m.detalle))
     : buscarEnCatalogo(CATEGORIAS_GASTO, m.detalle);
   return `
-    <div class="fila" style="padding:10px 0; border-top:1px solid var(--line);">
+    <div class="swipe-envoltura">
+      <div class="swipe-fondo"><span onclick="confirmarBorrarMovimientoDirecto(${m.id})">Eliminar</span></div>
+      <div class="swipe-contenido">
+    <div class="fila" style="padding:10px 0;" onclick="abrirModalEditarMovimiento(${m.id})">
       <div style="display:flex; align-items:center; gap:10px;">
         <span style="font-size:20px;">${cat.ic}</span>
         <div>
@@ -230,7 +234,85 @@ function filaMovimientoHTML(m) {
         ${m.tipo === 'ingreso' ? '+' : '−'}${formatoMoneda(m.monto)}
       </span>
     </div>
+      </div>
+    </div>
   `;
+}
+
+function confirmarBorrarMovimientoDirecto(id) {
+  const overlay = crearOverlay("modalConfirmBorrarMov", `
+    <div class="asa"></div>
+    <h2>¿Eliminar este registro?</h2>
+    <div class="muted" style="margin-bottom:16px;">Esto no se puede deshacer. El resumen se ajustará automáticamente.</div>
+    <button class="btn btn-danger" onclick="borrarMovimientoDirecto(${id})">Sí, eliminar</button>
+    <button class="btn btn-ghost" onclick="cerrarOverlay('modalConfirmBorrarMov'); refrescarTodo();">Cancelar</button>
+  `);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("activo"));
+}
+
+async function borrarMovimientoDirecto(id) {
+  await dbEliminar("movimientos", id);
+  await recargarEstado();
+  cerrarOverlay("modalConfirmBorrarMov");
+  toast("Borrado");
+  refrescarTodo();
+}
+
+/* ==========================================================
+   GESTO: DESLIZAR PARA ELIMINAR
+   ========================================================== */
+function cerrarSwipesAbiertos(exceptoContenido) {
+  document.querySelectorAll(".swipe-contenido").forEach(c => {
+    if (c !== exceptoContenido) c.style.transform = "translateX(0)";
+  });
+}
+
+function activarSwipes(contenedor) {
+  contenedor.querySelectorAll(".swipe-envoltura").forEach(env => {
+    if (env.dataset.swipeListo) return;
+    env.dataset.swipeListo = "1";
+
+    const contenido = env.querySelector(".swipe-contenido");
+    const UMBRAL = 70;
+    let inicioX = 0, inicioY = 0, deltaX = 0, arrastrando = false, esHorizontal = null;
+
+    let seMovioDeVerdad = false;
+
+    const alInicio = (x, y) => { inicioX = x; inicioY = y; deltaX = 0; arrastrando = true; esHorizontal = null; seMovioDeVerdad = false; contenido.classList.add("sin-transicion"); cerrarSwipesAbiertos(contenido); };
+    const alMover = (x, y) => {
+      if (!arrastrando) return;
+      const dx = x - inicioX, dy = y - inicioY;
+      if (esHorizontal === null) esHorizontal = Math.abs(dx) > Math.abs(dy);
+      if (!esHorizontal) return;
+      if (Math.abs(dx) > 8) seMovioDeVerdad = true;
+      deltaX = Math.min(0, Math.max(dx, -100));
+      contenido.style.transform = `translateX(${deltaX}px)`;
+    };
+    const alSoltar = () => {
+      if (!arrastrando) return;
+      arrastrando = false;
+      contenido.classList.remove("sin-transicion");
+      if (esHorizontal && deltaX < -UMBRAL) {
+        contenido.style.transform = `translateX(-84px)`;
+      } else {
+        contenido.style.transform = `translateX(0)`;
+      }
+    };
+    const alClic = (e) => {
+      if (seMovioDeVerdad) { e.stopPropagation(); e.preventDefault(); }
+    };
+
+    contenido.addEventListener("touchstart", e => alInicio(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    contenido.addEventListener("touchmove", e => alMover(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    contenido.addEventListener("touchend", alSoltar);
+
+    let mouseAbajo = false;
+    contenido.addEventListener("mousedown", e => { mouseAbajo = true; alInicio(e.clientX, e.clientY); });
+    window.addEventListener("mousemove", e => { if (mouseAbajo) alMover(e.clientX, e.clientY); });
+    window.addEventListener("mouseup", () => { if (mouseAbajo) { mouseAbajo = false; alSoltar(); } });
+    contenido.addEventListener("click", alClic, true);
+  });
 }
 
 function escaparHTML(s) {
@@ -1044,6 +1126,7 @@ function renderHistorial() {
       ${porFecha[fecha].map(m => filaHistorialHTML(m)).join("")}
     </div>
   `).join("");
+  activarSwipes(cont);
 }
 
 function filaHistorialHTML(m) {
@@ -1051,7 +1134,10 @@ function filaHistorialHTML(m) {
     ? (m.fuente === "negocio" ? buscarEnCatalogo(SERVICIOS, m.detalle) : buscarEnCatalogo(FUENTES_EXTERNAS, m.detalle))
     : buscarEnCatalogo(CATEGORIAS_GASTO, m.detalle);
   return `
-    <div class="fila" style="padding:10px 0; border-top:1px solid var(--line);" onclick="abrirModalEditarMovimiento(${m.id})">
+    <div class="swipe-envoltura">
+      <div class="swipe-fondo"><span onclick="confirmarBorrarMovimientoDirecto(${m.id})">Eliminar</span></div>
+      <div class="swipe-contenido">
+    <div class="fila" style="padding:10px 0;" onclick="abrirModalEditarMovimiento(${m.id})">
       <div style="display:flex; align-items:center; gap:10px;">
         <span style="font-size:20px;">${cat.ic}</span>
         <div>
@@ -1062,6 +1148,8 @@ function filaHistorialHTML(m) {
       <span class="${m.tipo === 'ingreso' ? 'monto-ingreso' : 'monto-gasto'}">
         ${m.tipo === 'ingreso' ? '+' : '−'}${formatoMoneda(m.monto)}
       </span>
+    </div>
+      </div>
     </div>
   `;
 }
